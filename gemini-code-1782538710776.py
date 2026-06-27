@@ -3,6 +3,10 @@ import streamlit as st
 # 페이지 설정
 st.set_page_config(page_title="국어 서논술형 자동 채점 시스템", layout="wide")
 
+# 세션 상태 초기화 (복습 데이터 및 리셋 기능용)
+if "results" not in st.session_state:
+    st.session_state.results = {}
+
 st.title("📝 2회고사 대비 서논술형 자동 채점 시스템")
 st.markdown("---")
 
@@ -22,17 +26,29 @@ def check_keywords(text, keyword_lists):
 def has_misconception(text, error_keywords):
     return any(ekw in text for ekw in error_keywords)
 
+# 처음부터 다시 풀기 버튼 공통 렌더링 함수
+def render_reset_button(set_key):
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        st.caption("모든 문제를 제출하면 복습할 내용 탭에서 틀린 개념을 확인할 수 있어요. 답안을 초기화하고 처음부터 다시 풀고 싶다면 다음의 버튼을 누르세요.")
+    with col2:
+        if st.button("🔄 처음부터 다시 풀기", key=f"reset_{set_key}", use_container_width=True):
+            for key in list(st.session_state.keys()):
+                if key.startswith(set_key) or key == "results":
+                    del st.session_state[key]
+            st.rerun()
+
 # -------------------------------------------------------------------------
 # 1세트 채점 로직
 # -------------------------------------------------------------------------
 if set_option == "1세트 (사회적 촉진/억제)":
     st.header("🍏 [실전 적용 - 1] 과제 난이도에 따른 학습 전략")
     
-    tab1, tab2, tab3 = st.tabs(["[서·논술형 1] 표 채우기", "[서·논술형 2] 설명문 작성", "[서·논술형 3] 영상 기획안"])
+    tab1, tab2, tab3, tab4 = st.tabs(["[서·논술형 1] 표 채우기", "[서·논술형 2] 설명문 작성", "[서·논술형 3] 영상 기획안", "📚 복습할 내용"])
     
     with tab1:
         st.info("""
-        [자료] 사회적 촉진과 억제 요약표
+        [자료] 사회적 촉진과 억제 요약表
         - 쉬운 과제 처리 시: 타인의 존재가 수행 능력을 높임 (사회적 촉진)
         - 어려운 과제 처리 시: 타인의 존재가 수행 능력을 떨어뜨림 (사회적 억제)
         - (ㄱ) 과제의 특성 ──> 커피숍이나 도서관 등 개방된 공간 활용
@@ -46,39 +62,40 @@ if set_option == "1세트 (사회적 촉진/억제)":
         """, language="text")
         
         st.markdown("위 요약표를 바탕으로 빈칸 (ㄱ)에 들어갈 적절한 내용을 내용을 찾아 쓰시오.")
-        ans_a = st.text_input("ans_a", label_visibility="collapsed")
+        ans_a = st.text_input("ans_a", key="set1_ans_a", label_visibility="collapsed")
         
         st.markdown("위 요약표를 바탕으로 빈칸 (ㄴ)에 들어갈 적절한 내용을 내용을 찾아 쓰시오.")
-        ans_b = st.text_input("ans_b", label_visibility="collapsed")
+        ans_b = st.text_input("ans_b", key="set1_ans_b", label_visibility="collapsed")
         
         st.markdown("위 요약표를 바탕으로 빈칸 (ㄷ)에 들어갈 적절한 내용을 내용을 찾아 쓰시오.")
-        ans_c = st.text_input("ans_c", label_visibility="collapsed")
+        ans_c = st.text_input("ans_c", key="set1_ans_c", label_visibility="collapsed")
         
-        if st.button("1번 문항 채점하기"):
+        if st.button("1번 문항 채점하기", key="btn_set1_1"):
             score = 0
             feedback = []
+            wrong_points = []
             
             if check_keywords(ans_a, [["쉬운", "취미", "노력"]]):
                 score += 1
-                feedback.append("ㄱ번 항목은 정답입니다. 의미가 올바르게 통합니다.")
             else:
-                feedback.append("ㄱ번 항목은 오답입니다. 과제의 난이도나 특성 기술이 부족합니다.")
+                wrong_points.append(" (ㄱ) 과제의 특성 기술 부족 (쉬운 과제, 적은 노력 등의 조건 누락)")
                 
             if check_keywords(ans_b, [["혼자", "차분"], ["집중", "연습"]]):
                 score += 1
-                feedback.append("ㄴ번 항목은 정답입니다. 핵심 맥락이 일치합니다.")
             else:
-                feedback.append("ㄴ번 항목은 오답입니다. 혼자 집중 또는 연습이라는 핵심 표현이 부족합니다.")
+                wrong_points.append(" (ㄴ) 학습 환경 및 방법 서술 부족 (혼자, 집중, 연습 등의 핵심어 누락)")
                 
             if "억제" in ans_c and "촉진" not in ans_c:
                 score += 1
-                feedback.append("ㄷ번 항목은 정답입니다. 사회적 억제 용어가 정확합니다.")
             else:
-                feedback.append("ㄷ번 항목은 오답입니다. 사회적 촉진 현상과 혼동했거나 잘못 기입되었습니다.")
+                wrong_points.append(" (ㄷ) 심리학 용어 오류 ('사회적 억제' 용어 미사용 혹은 혼동)")
                 
+            st.session_state.results["set1_1"] = {"is_perfect": score == 3, "wrong_points": wrong_points, "user_ans": f"ㄱ: {ans_a} / ㄴ: {ans_b} / ㄷ: {ans_c}"}
+            
             st.write("### 최종 채점 결과")
             st.write(f"총점 {score} 점 / 3 점 만점")
-            for f in feedback: st.write(f)
+            if score == 3: st.success("모든 조건을 충족했습니다!")
+            else: st.error("미충족된 조건이 있습니다. 마지막 복습 탭을 확인하세요.")
 
     with tab2:
         st.info("""
@@ -93,14 +110,14 @@ if set_option == "1세트 (사회적 촉진/억제)":
         """, language="text")
         
         st.markdown("첫 번째 문장에 사용할 설명 방법을 선택하고 해당 내용을 문장으로 이어 쓰시오.")
-        method1 = st.selectbox("m1", ["선택 안 함", "예시", "대조"], label_visibility="collapsed")
-        sent1 = st.text_area("s1", label_visibility="collapsed")
+        method1 = st.selectbox("m1", ["선택 안 함", "예시", "대조"], key="set1_m1", label_visibility="collapsed")
+        sent1 = st.text_area("s1", key="set1_s1", label_visibility="collapsed")
         
         st.markdown("두 번째 문장에 사용할 설명 방법을 선택하고 해당 내용을 문장으로 이어 쓰시오.")
-        method2 = st.selectbox("m2", ["선택 안 함", "예시", "대조"], label_visibility="collapsed")
-        sent2 = st.text_area("s2", label_visibility="collapsed")
+        method2 = st.selectbox("m2", ["선택 안 함", "예시", "대조"], key="set1_m2", label_visibility="collapsed")
+        sent2 = st.text_area("s2", key="set1_s2", label_visibility="collapsed")
         
-        if st.button("2번 문항 채점하기"):
+        if st.button("2번 문항 채점하기", key="btn_set1_2"):
             if method1 == "선택 안 함" or method2 == "선택 안 함" or method1 == method2:
                 st.error("오류: 조건에 맞게 서로 다른 두 가지 설명 방법을 선택해야 합니다.")
             else:
@@ -108,22 +125,23 @@ if set_option == "1세트 (사회적 촉진/억제)":
                 kw_m2 = f"({method2})" in sent2 or f"<{method2}>" in sent2
                 
                 score_1 = 0
-                if method1 == "예시" and check_keywords(sent1, [["예를", "예로", "도서관", "커피숍", "모임"]]):
-                    score_1 = 2 if kw_m1 else 1
-                elif method1 == "대조" and check_keywords(sent1, [["반면", "달리", "반대로", "혼자", "차분"]]):
-                    score_1 = 2 if kw_m1 else 1
+                if method1 == "예시" and check_keywords(sent1, [["예를", "예로", "도서관", "커피숍", "모임"]]): score_1 = 2 if kw_m1 else 1
+                elif method1 == "대조" and check_keywords(sent1, [["반면", "달리", "반대로", "혼자", "차분"]]): score_1 = 2 if kw_m1 else 1
                 
                 score_2 = 0
-                if method2 == "예시" and check_keywords(sent2, [["예를", "예로", "도서관", "커피숍", "모임"]]):
-                    score_2 = 2 if kw_m2 else 1
-                elif method2 == "대조" and check_keywords(sent2, [["반면", "달리", "반대로", "혼자", "차분"]]):
-                    score_2 = 2 if kw_m2 else 1
+                if method2 == "예시" and check_keywords(sent2, [["예를", "예로", "도서관", "커피숍", "모임"]]): score_2 = 2 if kw_m2 else 1
+                elif method2 == "대조" and check_keywords(sent2, [["반면", "달리", "반대로", "혼자", "차분"]]): score_2 = 2 if kw_m2 else 1
                 
                 total_score = score_1 + score_2
+                wrong_points = []
+                if total_score < 4:
+                    if not (kw_m1 and kw_m2): wrong_points.append(" 문장 끝에 설명 방법 명칭 괄호 표기 누락")
+                    if score_1 < 1 or score_2 < 1: wrong_points.append(" 과제 난이도별 환경 내용(도서관/커피숍 혹은 혼자/차분)이나 설명 기법 적용 미흡")
+                
+                st.session_state.results["set1_2"] = {"is_perfect": total_score == 4, "wrong_points": wrong_points, "user_ans": f"문장1: {sent1} / 문장2: {sent2}"}
+                
                 st.write("### 최종 채점 결과")
                 st.write(f"총점 {total_score} 점 / 4 점 만점")
-                if not (kw_m1 and kw_m2): 
-                    st.warning("안내: 문장 끝에 설명 방법 명칭을 괄호 안에 올바르게 표기하지 않아 감점 요소가 있습니다.")
 
     with tab3:
         st.info("""
@@ -138,24 +156,54 @@ if set_option == "1세트 (사회적 촉진/억제)":
         """, language="text")
         
         st.markdown("장면 2에 들어갈 시각 요소를 기획하고 그렇게 연출했을 때 얻을 수 있는 효과를 설명하시오.")
-        v_idx = st.text_area("v1", label_visibility="collapsed")
+        v_idx = st.text_area("v1", key="set1_v1", label_visibility="collapsed")
         
         st.markdown("장면 2에 들어갈 청각 요소를 기획하고 그렇게 연출했을 때 얻을 수 있는 효과를 설명하시오.")
-        a_idx = st.text_area("a1", label_visibility="collapsed")
+        a_idx = st.text_area("a1", key="set1_a1", label_visibility="collapsed")
         
-        if st.button("3번 문항 채점하기"):
+        if st.button("3번 문항 채점하기", key="btn_set1_3"):
             v_score = 0
             a_score = 0
+            wrong_points = []
+            
             if check_keywords(v_idx, [["혼자", "방", "독서실", "책상"]]) and not has_misconception(v_idx, ["도서관", "친구", "모임"]):
                 v_score += 1
                 if check_keywords(v_idx, [["집중", "자극 차단", "전달"]]): v_score += 1
+            else:
+                wrong_points.append(" 시각 요소 조건 미충족 (독립된 공간 및 집중 효과 기술 부족)")
                 
             if check_keywords(a_idx, [["고요", "적막", "소음 제거", "초침", "연필"]]) and not has_misconception(a_idx, ["배경음악", "경쾌", "음악"]):
                 a_score += 1
                 if check_keywords(a_idx, [["차분", "분위기", "강조"]]): a_score += 1
+            else:
+                wrong_points.append(" 청각 요소 조건 미충족 (소음 차단이나 대조 분위기 연출 부족)")
                 
+            total = v_score + a_score
+            st.session_state.results["set1_3"] = {"is_perfect": total == 4, "wrong_points": wrong_points, "user_ans": f"시각: {v_idx} / 청각: {a_idx}"}
+            
             st.write("### 최종 채점 결과")
-            st.write(f"총점 {v_score + a_score} 점 / 4 점 만점")
+            st.write(f"총점 {total} 점 / 4 점 만점")
+
+    with tab4:
+        st.subheader("📝 1세트 오개념 및 조건 미충족 문제 복습")
+        has_wrong = False
+        
+        for q_id, q_name in [("set1_1", "[서·논술형 1] 표 채우기"), ("set1_2", "[서·논술형 2] 설명문 작성"), ("set1_3", "[서·논술형 3] 영상 기획안")]:
+            if q_id in st.session_state.results and not st.session_state.results[q_id]["is_perfect"]:
+                has_wrong = True
+                st.markdown(f"#### ❌ {q_name}")
+                st.markdown(f"**💡 핵심 복습 포인트:** 과제의 특성(난이도)에 부합하는 공간 유형과 인지 심리학적 현상(사회적 촉진과 억제)의 인과 관계를 정확히 구별해야 합니다.")
+                st.markdown("**⚠️ 내 답안의 부족한 부분:**")
+                for wp in st.session_state.results[q_id]["wrong_points"]:
+                    st.write(wp)
+                st.caption(f"작성했던 답안: {st.session_state.results[q_id]['user_ans']}")
+                st.markdown("---")
+                
+        if not has_wrong:
+            st.success("틀린 문제가 없거나 아직 채전을 진행하지 않았습니다. 문제를 풀고 채점하기를 눌러주세요.")
+            
+        st.markdown("<br>", unsafe_allow_html=True)
+        render_reset_button("set1")
 
 # -------------------------------------------------------------------------
 # 2세트 채점 로직
@@ -163,7 +211,7 @@ if set_option == "1세트 (사회적 촉진/억제)":
 elif set_option == "2세트 (정전기의 특징)":
     st.header("⚡ [실전 적용 - 2] 겨울철 불청객 정전기")
     
-    tab1, tab2, tab3 = st.tabs(["[서·논술형 1] 표 채우기", "[서·논술형 2] 설명문 작성", "[서·논술형 3] 영상 기획안"])
+    tab1, tab2, tab3, tab4 = st.tabs(["[서·논술형 1] 표 채우기", "[서·논술형 2] 설명문 작성", "[서·논술형 3] 영상 기획안", "📚 복습할 내용"])
     
     with tab1:
         st.info("""
@@ -178,35 +226,30 @@ elif set_option == "2세트 (정전기의 특징)":
         """, language="text")
         
         st.markdown("본문의 비유적 설명을 바탕으로 빈칸 (ㄱ)에 들어갈 핵심 단어나 문장을 완성하시오.")
-        ans_a = st.text_input("ans_2a", label_visibility="collapsed")
+        ans_a = st.text_input("ans_2a", key="set2_ans_a", label_visibility="collapsed")
         
         st.markdown("본문의 비유적 설명을 바탕으로 빈칸 (ㄴ)에 들어갈 핵심 단어나 문장을 완성하시오.")
-        ans_b = st.text_input("ans_2b", label_visibility="collapsed")
+        ans_b = st.text_input("ans_2b", key="set2_ans_b", label_visibility="collapsed")
         
         st.markdown("본문의 비유적 설명을 바탕으로 빈칸 (ㄷ)에 들어갈 핵심 단어나 문장을 완성하시오.")
-        ans_c = st.text_input("ans_2c", label_visibility="collapsed")
+        ans_c = st.text_input("ans_2c", key="set2_ans_c", label_visibility="collapsed")
         
-        if st.button("1번 문항 채점하기"):
+        if st.button("1번 문항 채점하기", key="btn_set2_1"):
             score = 0
-            feedback = []
-            if check_keywords(ans_a, [["고여", "멈춘"]]): 
-                score += 1
-                feedback.append("ㄱ번 항목은 정답입니다. 고여 있는 물의 특성을 잘 파악했습니다.")
-            else: feedback.append("ㄱ번 항목은 오답입니다. 물의 상태 비유가 적절하지 않습니다.")
+            wrong_points = []
+            if check_keywords(ans_a, [["고여", "멈춘"]]): score += 1
+            else: wrong_points.append(" (ㄱ) 비유적 표현 불일치 (고여 있는 물의 성질 표현 누락)")
                 
-            if check_keywords(ans_b, [["이동하지", "머물", "정지"]]): 
-                score += 1
-                feedback.append("ㄴ번 항목은 정답입니다. 전하의 정지 상태를 잘 설명했습니다.")
-            else: feedback.append("ㄴ번 항목은 오답입니다. 전하의 이동 여부를 다시 확인해 주세요.")
+            if check_keywords(ans_b, [["이동하지", "머물", "정지"]]): score += 1
+            else: wrong_points.append(" (ㄴ) 과학적 현상 기술 오류 (전하의 정지 및 머무름 현상 누락)")
                 
-            if check_keywords(ans_c, [["위험하지", "안전", "피해X", "무해"]]): 
-                score += 1
-                feedback.append("ㄷ번 항목은 정답입니다. 위험성이 없음을 명확히 짚어냈습니다.")
-            else: feedback.append("ㄷ번 항목은 오답입니다. 인체 영향이나 위험성 결론이 잘못되었습니다.")
+            if check_keywords(ans_c, [["위험하지", "안전", "피해X", "무해"]]): score += 1
+            else: wrong_points.append(" (ㄷ) 정전기의 인체 영향 오류 (전류가 미미하여 위험성이 없다는 사실 누락)")
                 
+            st.session_state.results["set2_1"] = {"is_perfect": score == 3, "wrong_points": wrong_points, "user_ans": f"ㄱ: {ans_a} / ㄴ: {ans_b} / ㄷ: {ans_c}"}
+            
             st.write("### 최종 채점 결과")
             st.write(f"총점 {score} 점 / 3 점 만점")
-            for f in feedback: st.write(f)
 
     with tab2:
         st.info("""
@@ -220,14 +263,14 @@ elif set_option == "2세트 (정전기의 특징)":
         """, language="text")
         
         st.markdown("첫 번째 문장에 사용할 설명 방법을 선택하고 정전기의 개념 혹은 비유적 특성을 이어 쓰시오.")
-        method1 = st.selectbox("m2_1", ["선택 안 함", "정의", "비교와 대조"], label_visibility="collapsed")
-        sent1 = st.text_area("s2_1", label_visibility="collapsed")
+        method1 = st.selectbox("m2_1", ["선택 안 함", "정의", "비교와 대조"], key="set2_m1", label_visibility="collapsed")
+        sent1 = st.text_area("s2_1", key="set2_s1", label_visibility="collapsed")
         
         st.markdown("두 번째 문장에 사용할 설명 방법을 선택하고 정전기의 개념 혹은 비유적 특성을 이어 쓰시오.")
-        method2 = st.selectbox("m2_2", ["선택 안 함", "정의", "비교와 대조"], label_visibility="collapsed")
-        sent2 = st.text_area("s2_2", label_visibility="collapsed")
+        method2 = st.selectbox("m2_2", ["선택 안 함", "정의", "비교와 대조"], key="set2_m2", label_visibility="collapsed")
+        sent2 = st.text_area("s2_2", key="set2_s2", label_visibility="collapsed")
         
-        if st.button("2번 문항 채점하기"):
+        if st.button("2번 문항 채점하기", key="btn_set2_2"):
             if method1 == "선택 안 함" or method2 == "선택 안 함" or method1 == method2:
                 st.error("오류: 조건에 맞게 서로 다른 설명 방법을 매칭해야 합니다.")
             else:
@@ -238,21 +281,23 @@ elif set_option == "2세트 (정전기의 특징)":
                 kw_m2 = "비교" in sent2 or "대조" in sent2 if is_comp2 else f"({method2})" in sent2
                 
                 score_1 = 0
-                if method1 == "정의" and check_keywords(sent1, [["전기", "뜻", "의미", "말한다"]]) and not has_misconception(sent1, ["흐르는 물"]):
-                    score_1 = 2 if kw_m1 else 1
+                if method1 == "정의" and check_keywords(sent1, [["전기", "뜻", "의미", "말한다"]]) and not has_misconception(sent1, ["흐르는 물"]): score_1 = 2 if kw_m1 else 1
                 elif is_comp1:
-                    if check_keywords(sent1, [["물", "고여", "흐르는"]]) and not has_misconception(sent1, ["시간적으로 변화하지"]):
-                        score_1 = 2 if kw_m1 else 1
+                    if check_keywords(sent1, [["물", "고여", "흐르는"]]) and not has_misconception(sent1, ["시간적으로 변화하지"]): score_1 = 2 if kw_m1 else 1
                         
                 score_2 = 0
-                if method2 == "정의" and check_keywords(sent2, [["전기", "뜻", "의미", "말한다"]]) and not has_misconception(sent2, ["흐르는 물"]):
-                    score_2 = 2 if kw_m2 else 1
+                if method2 == "정의" and check_keywords(sent2, [["전기", "뜻", "의미", "말한다"]]) and not has_misconception(sent2, ["흐르는 물"]): score_2 = 2 if kw_m2 else 1
                 elif is_comp2:
-                    if check_keywords(sent2, [["물", "고여", "흐르는"]]) and not has_misconception(sent2, ["시간적으로 변화하지"]):
-                        score_2 = 2 if kw_m2 else 1
+                    if check_keywords(sent2, [["물", "고여", "흐르는"]]) and not has_misconception(sent2, ["시간적으로 변화하지"]): score_2 = 2 if kw_m2 else 1
                         
+                total = score_1 + score_2
+                wrong_points = []
+                if total < 4:
+                    wrong_points.append(" 정의문 구성 지침 미달 또는 고여 있는 물 vs 흐르는 물의 대조 메커니즘 표현 미흡")
+                
+                st.session_state.results["set2_2"] = {"is_perfect": total == 4, "wrong_points": wrong_points, "user_ans": f"문장1: {sent1} / 문장2: {sent2}"}
                 st.write("### 최종 채점 결과")
-                st.write(f"총점 {score_1 + score_2} 점 / 4 점 만점")
+                st.write(f"총점 {total} 점 / 4 점 만점")
 
     with tab3:
         st.info("""
@@ -267,24 +312,53 @@ elif set_option == "2세트 (정전기의 특징)":
         """, language="text")
         
         st.markdown("장면 2의 구체적인 시각 연출 계획과 그 연출을 통해 달성하려는 시청자 전달 효과를 서술하시오.")
-        v_idx = st.text_area("v2", label_visibility="collapsed")
+        v_idx = st.text_area("v2", key="set2_v1", label_visibility="collapsed")
         
         st.markdown("장면 2의 구체적인 청각 연출 계획과 그 연출을 통해 달성하려는 시청자 전달 효과를 서술하시오.")
-        a_idx = st.text_area("a2", label_visibility="collapsed")
+        a_idx = st.text_area("a2", key="set2_a1", label_visibility="collapsed")
         
-        if st.button("3번 문항 채점하기"):
+        if st.button("3번 문항 채점하기", key="btn_set2_3"):
             v_score = 0
             a_score = 0
+            wrong_points = []
+            
             if check_keywords(v_idx, [["높은", "절벽", "산"], ["고여", "댐", "저수지"]]) and not has_misconception(v_idx, ["폭포", "쏟아"]):
                 v_score += 1
                 if check_keywords(v_idx, [["전압", "이동하지", "시각화", "이해"]]): v_score += 1
+            else:
+                wrong_points.append(" 시각 요소 조건 미치달 (고여 있는 상태를 형상화하는 연출 계획 누락)")
                 
             if check_keywords(a_idx, [["고요", "적막", "소리 없는"]]) and not has_misconception(a_idx, ["웅장", "물소리", "스파크"]):
                 a_score += 1
                 if check_keywords(a_idx, [["위험하지", "피해가 없는", "안도감", "대조"]]): a_score += 1
+            else:
+                wrong_points.append(" 청각 요소 조건 미치달 (무해함을 연상시키는 평온한 청각 디자인 부족)")
                 
+            total = v_score + a_score
+            st.session_state.results["set2_3"] = {"is_perfect": total == 4, "wrong_points": wrong_points, "user_ans": f"시각: {v_idx} / 청각: {a_idx}"}
             st.write("### 최종 채점 결과")
-            st.write(f"총점 {v_score + a_score} 점 / 4 점 만점")
+            st.write(f"총점 {total} 점 / 4 점 만점")
+
+    with tab4:
+        st.subheader("📝 2세트 오개념 및 조건 미충족 문제 복습")
+        has_wrong = False
+        
+        for q_id, q_name in [("set2_1", "[서·논술형 1] 표 채우기"), ("set2_2", "[서·논술형 2] 설명문 작성"), ("set2_3", "[서·논술형 3] 영상 기획안")]:
+            if q_id in st.session_state.results and not st.session_state.results[q_id]["is_perfect"]:
+                has_wrong = True
+                st.markdown(f"#### ❌ {q_name}")
+                st.markdown(f"**💡 핵심 복습 포인트:** 정전기는 일반 전류와 달리 전하가 머물러 있는 성질을 가지며 비유적으로 흐르지 않는 '고인 물'과 같다는 과학적 기본 개념을 융합해야 합니다.")
+                st.markdown("**⚠️ 내 답안의 부족한 부분:**")
+                for wp in st.session_state.results[q_id]["wrong_points"]:
+                    st.write(wp)
+                st.caption(f"작성했던 답안: {st.session_state.results[q_id]['user_ans']}")
+                st.markdown("---")
+                
+        if not has_wrong:
+            st.success("틀린 문제가 없거나 아직 채전을 진행하지 않았습니다. 문제를 풀고 채점하기를 눌러주세요.")
+            
+        st.markdown("<br>", unsafe_allow_html=True)
+        render_reset_button("set2")
 
 # -------------------------------------------------------------------------
 # 3세트 채점 로직
@@ -292,7 +366,7 @@ elif set_option == "2세트 (정전기의 특징)":
 elif set_option == "3세트 (인간 vs AI 예술)":
     st.header("🎨 [실전 적용 - 3] 인공 지능이 그린 그림의 예술성")
     
-    tab1, tab2, tab3 = st.tabs(["[서·논술형 1] 표 채우기", "[서·논술형 2] 설명문 작성", "[서·논술형 3] 영상 기획안"])
+    tab1, tab2, tab3, tab4 = st.tabs(["[서·논술형 1] 표 채우기", "[서·논술형 2] 설명문 작성", "[서·논술형 3] 영상 기획안", "📚 복습할 내용"])
     
     with tab1:
         st.info("""
@@ -307,35 +381,29 @@ elif set_option == "3세트 (인간 vs AI 예술)":
         """, language="text")
         
         st.markdown("지문의 핵심 대조 항목을 고려하여 빈칸 (ㄱ)에 들어갈 알맞은 내용을 비유적으로 표현해 채우시오.")
-        ans_a = st.text_input("ans_3a", label_visibility="collapsed")
+        ans_a = st.text_input("ans_3a", key="set3_ans_a", label_visibility="collapsed")
         
         st.markdown("지문의 핵심 대조 항목을 고려하여 빈칸 (ㄴ)에 들어갈 알맞은 내용을 근거와 함께 채우시오.")
-        ans_b = st.text_input("ans_3b", label_visibility="collapsed")
+        ans_b = st.text_input("ans_3b", key="set3_ans_b", label_visibility="collapsed")
         
         st.markdown("지문의 핵심 대조 항목을 고려하여 빈칸 (ㄷ)에 들어갈 알맞은 가치 유형을 기술하여 채우시오.")
-        ans_c = st.text_input("ans_3c", label_visibility="collapsed")
+        ans_c = st.text_input("ans_3c", key="set3_ans_c", label_visibility="collapsed")
         
-        if st.button("1번 문항 채점하기"):
+        if st.button("1번 문항 채점하기", key="btn_set3_1"):
             score = 0
-            feedback = []
-            if check_keywords(ans_a, [["로봇", "인공지능"], ["피겨", "스케이팅", "완벽"]]): 
-                score += 1
-                feedback.append("ㄱ번 항목은 정답입니다. 기계적 완벽함 비유를 정확히 포착했습니다.")
-            else: feedback.append("ㄱ번 항목은 오답입니다. 올림픽 경기 비유 대상을 다시 찾아보세요.")
+            wrong_points = []
+            if check_keywords(ans_a, [["로봇", "인공지능"], ["피겨", "스케이팅", "완벽"]]): score += 1
+            else: wrong_points.append(" (ㄱ) 대조 비유군 설정 미흡 (기계적 매끄러움을 상징하는 로봇 연기 등 핵심 요소 누락)")
                 
-            if check_keywords(ans_b, [["감정", "철학", "이야기"], ["어렵다", "아니다", "부정"]]): 
-                score += 1
-                feedback.append("ㄴ번 항목은 정답입니다. 한계점과 부정이 명확히 연결되었습니다.")
-            else: feedback.append("ㄴ번 항목은 오답입니다. 예술로 보기 어려운 근거와 판단 결론이 부족합니다.")
+            if check_keywords(ans_b, [["감정", "철학", "이야기"], ["어렵다", "아니다", "부정"]]): score += 1
+            else: wrong_points.append(" (ㄴ) 한계점 도출 미흡 (주체적인 감정이나 예술적 주관성이 없다는 한계 서술 누락)")
                 
-            if check_keywords(ans_c, [["변화", "확장", "상징"]]): 
-                score += 1
-                feedback.append("ㄷ번 항목은 정답입니다. 상징적 가치와 범주 확장의 의의를 잘 짚었습니다.")
-            else: feedback.append("ㄷ번 항목은 오답입니다. 본문 마지막 단락에 제시된 가치 내용을 확인하세요.")
+            if check_keywords(ans_c, [["변화", "확장", "상징"]]): score += 1
+            else: wrong_points.append(" (ㄷ) 사회적 의의 분류 미진 (기존 미술계의 지평을 흔드는 상징적 가치 명시 누락)")
                 
+            st.session_state.results["set3_1"] = {"is_perfect": score == 3, "wrong_points": wrong_points, "user_ans": f"ㄱ: {ans_a} / ㄴ: {ans_b} / ㄷ: {ans_c}"}
             st.write("### 최종 채점 결과")
             st.write(f"총점 {score} 점 / 3 점 만점")
-            for f in feedback: st.write(f)
 
     with tab2:
         st.info("""
@@ -349,14 +417,14 @@ elif set_option == "3세트 (인간 vs AI 예술)":
         """, language="text")
         
         st.markdown("첫 번째 문장에 사용할 설명 방법을 선택하고 해당 기법에 맞춰 인간 예술의 구성 요소를 서술해 이어 쓰시오.")
-        method1 = st.selectbox("m3_1", ["선택 안 함", "분석", "대조"], label_visibility="collapsed")
-        sent1 = st.text_area("s3_1", label_visibility="collapsed")
+        method1 = st.selectbox("m3_1", ["선택 안 함", "분석", "대조"], key="set3_m1", label_visibility="collapsed")
+        sent1 = st.text_area("s3_1", key="set3_s1", label_visibility="collapsed")
         
         st.markdown("두 번째 문장에 사용할 설명 방법을 선택하고 해당 기법에 맞춰 인간과 인공지능 작품의 차이를 서술해 이어 쓰시오.")
-        method2 = st.selectbox("m3_2", ["선택 안 함", "분석", "대조"], label_visibility="collapsed")
-        sent2 = st.text_area("s3_2", label_visibility="collapsed")
+        method2 = st.selectbox("m3_2", ["선택 안 함", "분석", "대조"], key="set3_m2", label_visibility="collapsed")
+        sent2 = st.text_area("s3_2", key="set3_s2", label_visibility="collapsed")
         
-        if st.button("2번 문항 채점하기"):
+        if st.button("2번 문항 채점하기", key="btn_set3_2"):
             if method1 == "선택 안 함" or method2 == "선택 안 함" or method1 == method2:
                 st.error("오류: 조건에 맞게 서로 중복되지 않는 설명 기법을 선택해야 합니다.")
             else:
@@ -364,19 +432,21 @@ elif set_option == "3세트 (인간 vs AI 예술)":
                 kw_m2 = f"({method2})" in sent2
                 
                 score_1 = 0
-                if method1 == "분석" and check_keywords(sent1, [["감정", "철학", "경험", "관점", "요소"]]):
-                    score_1 = 2 if kw_m1 else 1
-                elif method1 == "대조" and check_keywords(sent1, [["반면", "인공지능", "차이", "없다"]]):
-                    score_1 = 2 if kw_m1 else 1
+                if method1 == "분석" and check_keywords(sent1, [["감정", "철학", "경험", "관점", "요소"]]): score_1 = 2 if kw_m1 else 1
+                elif method1 == "대조" and check_keywords(sent1, [["반면", "인공지능", "차이", "없다"]]): score_1 = 2 if kw_m1 else 1
                     
                 score_2 = 0
-                if method2 == "분석" and check_keywords(sent2, [["감정", "철학", "경험", "관점", "요소"]]):
-                    score_2 = 2 if kw_m2 else 1
-                elif method2 == "대조" and check_keywords(sent2, [["반면", "인공지능", "차이", "없다"]]):
-                    score_2 = 2 if kw_m2 else 1
+                if method2 == "분석" and check_keywords(sent2, [["감정", "철학", "경험", "관점", "요소"]]): score_2 = 2 if kw_m2 else 1
+                elif method2 == "대조" and check_keywords(sent2, [["반면", "인공지능", "차이", "없다"]]): score_2 = 2 if kw_m2 else 1
                     
+                total = score_1 + score_2
+                wrong_points = []
+                if total < 4:
+                    wrong_points.append(" 설명문 기법(분석 또는 대조) 서술 규칙 불이행 및 키워드 누락")
+                
+                st.session_state.results["set3_2"] = {"is_perfect": total == 4, "wrong_points": wrong_points, "user_ans": f"문장1: {sent1} / 문장2: {sent2}"}
                 st.write("### 최종 채점 결과")
-                st.write(f"총점 {score_1 + score_2} 점 / 4 점 만점")
+                st.write(f"총점 {total} 점 / 4 점 만점")
 
     with tab3:
         st.info("""
@@ -391,21 +461,49 @@ elif set_option == "3세트 (인간 vs AI 예술)":
         """, language="text")
         
         st.markdown("장면 2에 들어갈 구체적인 시각 매체 언어와 이를 통해 감상자에게 전달하고자 하는 의도를 서술하시오.")
-        v_idx = st.text_area("v3", label_visibility="collapsed")
+        v_idx = st.text_area("v3", key="set3_v1", label_visibility="collapsed")
         
         st.markdown("장면 2에 들어갈 구체적인 청각 매체 언어와 이를 통해 감상자에게 전달하고자 하는 의도를 서술하시오.")
-        a_idx = st.text_area("a3", label_visibility="collapsed")
+        a_idx = st.text_area("a3", key="set3_a1", label_visibility="collapsed")
         
-        if st.button("3번 문항 채점하기"):
+        if st.button("3번 문항 채점하기", key="btn_set3_3"):
             v_score = 0
             a_score = 0
+            wrong_points = []
             if check_keywords(v_idx, [["인간", "선수", "예술가"], ["땀", "열정", "노력"]]) and not has_misconception(v_idx, ["로봇", "기계"]):
                 v_score += 1
                 if check_keywords(v_idx, [["감정", "가치", "시각적", "전달"]]): v_score += 1
+            else:
+                wrong_points.append(" 시각 연출 내 인간성 가치(땀방울, 노력 등) 대비 효과 미흡")
                 
             if check_keywords(a_idx, [["오케스트라", "음악", "풍부"], ["환호", "박수"]]) and not has_misconception(a_idx, ["메트로놈", "기계음"]):
                 a_score += 1
                 if check_keywords(a_idx, [["울림", "감동", "대조", "부각"]]): a_score += 1
+            else:
+                wrong_points.append(" 청각 기획 내 오디토리움 대비(기계음과 대비되는 감동적인 음악 등) 미충족")
                 
+            total = v_score + a_score
+            st.session_state.results["set3_3"] = {"is_perfect": total == 4, "wrong_points": wrong_points, "user_ans": f"시각: {v_idx} / 청각: {a_idx}"}
             st.write("### 최종 채점 결과")
-            st.write(f"총점 {v_score + a_score} 점 / 4 점 만점")
+            st.write(f"총점 {total} 점 / 4 점 만점")
+
+    with tab4:
+        st.subheader("📝 3세트 오개념 및 조건 미충족 문제 복습")
+        has_wrong = False
+        
+        for q_id, q_name in [("set3_1", "[서·논술형 1] 표 채우기"), ("set3_2", "[서·논술형 2] 설명문 작성"), ("set3_3", "[서·논술형 3] 영상 기획안")]:
+            if q_id in st.session_state.results and not st.session_state.results[q_id]["is_perfect"]:
+                has_wrong = True
+                st.markdown(f"#### ❌ {q_name}")
+                st.markdown(f"**💡 핵심 복습 포인트:** 인공지능 예술은 고도의 기술적 무결성을 지니지만 인간 고유의 역사성, 감정, 예술적 고뇌가 결여되어 있다는 한계점과 상징적 교차점을 동시에 고찰해야 합니다.")
+                st.markdown("**⚠️ 내 답안의 부족한 부분:**")
+                for wp in st.session_state.results[q_id]["wrong_points"]:
+                    st.write(wp)
+                st.caption(f"작성했던 답안: {st.session_state.results[q_id]['user_ans']}")
+                st.markdown("---")
+                
+        if not has_wrong:
+            st.success("틀린 문제가 없거나 아직 채전을 진행하지 않았습니다. 문제를 풀고 채점하기를 눌러주세요.")
+            
+        st.markdown("<br>", unsafe_allow_html=True)
+        render_reset_button("set3")
